@@ -1,0 +1,52 @@
+diff --git a/dist/vue-router.cjs b/dist/vue-router.cjs
+index a04dffc9e13674f52a9478a67b58cc7ce0a8e5d4..791eb98132d31f1dac1a29aff2ac9717dbb4e09d 100644
+--- a/dist/vue-router.cjs
++++ b/dist/vue-router.cjs
+@@ -1964,7 +1964,7 @@ const RouterViewImpl = /* @__PURE__ */ (0, vue.defineComponent)({
+ 					meta: matchedRoute.meta
+ 				};
+ 				(isArray(component.ref) ? component.ref.map((r) => r.i) : [component.ref.i]).forEach((instance) => {
+-					instance.__vrv_devtools = info;
++					if (instance) instance.__vrv_devtools = info;
+ 				});
+ 			}
+ 			return normalizeSlot(slots.default, {
+diff --git a/dist/vue-router.esm-browser.js b/dist/vue-router.esm-browser.js
+index b58e20480bc56084b40095dc9a75b154a714c009..eb1be5d5efb5b6eadccde4f519388cf8f6fc296e 100644
+--- a/dist/vue-router.esm-browser.js
++++ b/dist/vue-router.esm-browser.js
+@@ -1961,7 +1961,7 @@ const RouterViewImpl = /* @__PURE__ */ defineComponent({
+ 					meta: matchedRoute.meta
+ 				};
+ 				(isArray(component.ref) ? component.ref.map((r) => r.i) : [component.ref.i]).forEach((instance) => {
+-					instance.__vrv_devtools = info;
++					if (instance) instance.__vrv_devtools = info;
+ 				});
+ 			}
+ 			return normalizeSlot(slots.default, {
+diff --git a/dist/vue-router.global.js b/dist/vue-router.global.js
+index 196b20456bb9003e7889d9cd77619742c51a309e..e6d94d44fd43aec781c59daaa2dd297ff5c4ad4d 100644
+--- a/dist/vue-router.global.js
++++ b/dist/vue-router.global.js
+@@ -1965,7 +1965,7 @@ var VueRouter = (function(exports, vue) {
+ 						meta: matchedRoute.meta
+ 					};
+ 					(isArray(component.ref) ? component.ref.map((r) => r.i) : [component.ref.i]).forEach((instance) => {
+-						instance.__vrv_devtools = info;
++						if (instance) instance.__vrv_devtools = info;
+ 					});
+ 				}
+ 				return normalizeSlot(slots.default, {
+diff --git a/dist/vue-router.mjs b/dist/vue-router.mjs
+index 51101d6dd1cac25eb9d15726a21e06fff56139e8..8931e88cf66ffbe58dc51f801d5489e75d9d2ece 100644
+--- a/dist/vue-router.mjs
++++ b/dist/vue-router.mjs
+@@ -1115,7 +1115,7 @@ const RouterViewImpl = /* @__PURE__ */ defineComponent({
+ 					meta: matchedRoute.meta
+ 				};
+ 				(isArray(component.ref) ? component.ref.map((r) => r.i) : [component.ref.i]).forEach((instance) => {
+-					instance.__vrv_devtools = info;
++					if (instance) instance.__vrv_devtools = info;
+ 				});
+ 			}
+ 			return normalizeSlot(slots.default, {

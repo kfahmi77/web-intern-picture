@@ -14,11 +14,16 @@
     "nuxt": "^3.17.5",
     "sharp": "^0.34.2",
     "vue": "^3.5.17",
-    "vue-router": "^4.5.1"
+    "vue-router": "4.6.4"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
     "typescript": "6.0.3",
     "vue-tsc": "3.3.3"
+  },
+  "pnpm": {
+    "patchedDependencies": {
+      "vue-router@4.6.4": "patches/vue-router@4.6.4.patch"
+    }
   }
 }
