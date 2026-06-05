@@ -3,6 +3,7 @@ import type { Readable } from 'node:stream'
 
 let client: Client | null = null
 let bucketReady = false
+const AUTO_CREATE_BUCKET = process.env.NUXT_MINIO_AUTO_CREATE_BUCKET === 'true' || import.meta.dev
 
 function normalizeEndpoint(raw: string, rawUseSSL: string) {
   const fallbackUseSSL = String(rawUseSSL) === 'true'
@@ -61,9 +62,14 @@ export function getBucket(): string {
 
 export async function ensureBucket(): Promise<void> {
   if (bucketReady) return
+  if (!AUTO_CREATE_BUCKET) {
+    bucketReady = true
+    return
+  }
+
   const mc = getMinio()
   const bucket = getBucket()
-  const exists = await mc.bucketExists(bucket).catch(() => false)
+  const exists = await mc.bucketExists(bucket)
   if (!exists) {
     await mc.makeBucket(bucket, '')
   }

@@ -7,6 +7,9 @@ const fileInput = ref<HTMLInputElement | null>(null)
 const message = ref<string | null>(null)
 const messageType = ref<'ok' | 'err'>('ok')
 
+const MAX_UPLOAD_BYTES = 3.8 * 1024 * 1024
+const MAX_IMAGE_SIDE = 2200
+
 function pick() {
   fileInput.value?.click()
 }
@@ -22,26 +25,101 @@ function onChange(e: Event) {
   if (files && files.length) upload(files)
 }
 
+function fileExt(name: string): string {
+  return (name.split('.').pop() || '').toLowerCase()
+}
+
+function isHeic(file: File): boolean {
+  const ext = fileExt(file.name)
+  return file.type === 'image/heic' || file.type === 'image/heif' || ext === 'heic' || ext === 'heif'
+}
+
+function errorMessage(err: any): string {
+  return err?.data?.statusMessage || err?.statusMessage || err?.message || 'Gagal mengunggah.'
+}
+
+async function loadImage(file: File): Promise<HTMLImageElement> {
+  const url = URL.createObjectURL(file)
+  try {
+    const img = new Image()
+    img.decoding = 'async'
+    img.src = url
+    await img.decode()
+    return img
+  } finally {
+    URL.revokeObjectURL(url)
+  }
+}
+
+async function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, type, quality))
+  if (!blob) throw new Error('Browser gagal memproses gambar.')
+  return blob
+}
+
+async function compressImage(file: File): Promise<File> {
+  if (file.size <= MAX_UPLOAD_BYTES) return file
+  if (isHeic(file)) {
+    throw new Error('File HEIC terlalu besar untuk Vercel. Ubah ke JPEG dulu atau pilih file di bawah 3.8MB.')
+  }
+
+  const img = await loadImage(file)
+  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(img.naturalWidth, img.naturalHeight))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.max(1, Math.round(img.naturalWidth * scale))
+  canvas.height = Math.max(1, Math.round(img.naturalHeight * scale))
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Browser tidak mendukung kompresi gambar.')
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+
+  for (const quality of [0.82, 0.72, 0.62, 0.52]) {
+    const blob = await canvasToBlob(canvas, 'image/jpeg', quality)
+    if (blob.size <= MAX_UPLOAD_BYTES) {
+      return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+        type: 'image/jpeg',
+        lastModified: file.lastModified,
+      })
+    }
+  }
+
+  throw new Error('File terlalu besar untuk Vercel setelah dikompres. Pilih foto yang lebih kecil.')
+}
+
 async function upload(files: FileList) {
   uploading.value = true
   message.value = null
-  const form = new FormData()
-  for (const f of Array.from(files)) form.append('files', f)
+  const selected = Array.from(files)
+  let uploaded = 0
+  const errors: Array<{ file: string; reason: string }> = []
 
   try {
-    const res = await $fetch<{ count: number; errors: any[] }>('/api/photos', {
-      method: 'POST',
-      body: form,
-    })
-    messageType.value = 'ok'
-    const skipped = res.errors?.length
-      ? ` (${res.errors.length} dilewati)`
-      : ''
-    message.value = `${res.count} foto terunggah${skipped}.`
+    for (const file of selected) {
+      try {
+        const prepared = await compressImage(file)
+        const form = new FormData()
+        form.append('files', prepared)
+        const res = await $fetch<{ count: number; errors: any[] }>('/api/photos', {
+          method: 'POST',
+          body: form,
+        })
+        uploaded += res.count
+        if (res.errors?.length) errors.push(...res.errors)
+      } catch (err: any) {
+        errors.push({ file: file.name, reason: errorMessage(err) })
+      }
+    }
+
+    if (uploaded === 0) {
+      throw new Error(errors[0]?.reason || 'Gagal mengunggah.')
+    }
+
+    messageType.value = errors.length ? 'err' : 'ok'
+    const skipped = errors.length ? ` (${errors.length} dilewati)` : ''
+    message.value = `${uploaded} foto terunggah${skipped}.`
     emit('uploaded')
   } catch (e: any) {
     messageType.value = 'err'
-    message.value = e?.statusMessage || 'Gagal mengunggah.'
+    message.value = errorMessage(e)
   } finally {
     uploading.value = false
     if (fileInput.value) fileInput.value.value = ''

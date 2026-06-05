@@ -70,7 +70,10 @@ async function readManifest(): Promise<PhotoRow[]> {
     return sortPhotos(photos.map(toPhotoRow).filter((row): row is PhotoRow => row !== null))
   } catch (err) {
     if (isMissingObjectError(err)) {
-      const rows = await listStoredPhotos()
+      const rows = await listStoredPhotos().catch((scanErr) => {
+        console.warn('failed to scan stored photos for metadata fallback', scanErr)
+        return []
+      })
       if (rows.length > 0) {
         await writeManifest(rows)
       }
