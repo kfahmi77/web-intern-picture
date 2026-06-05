@@ -1,5 +1,5 @@
-export default defineEventHandler(() => {
-  const photos = listPhotos()
+export default defineEventHandler(async () => {
+  const photos = await listPhotos()
   return {
     photos: photos.map((p) => ({
       id: p.id,

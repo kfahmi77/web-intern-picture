@@ -42,7 +42,6 @@ export default defineNuxtConfig({
       secretKey: '',
       bucket: '',
     },
-    dbPath: '',
   },
   nitro: {
     storage: {},

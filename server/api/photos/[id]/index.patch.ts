@@ -4,7 +4,7 @@ export default defineEventHandler(async (event) => {
   const body = await readBody<{ caption?: string }>(event)
   const caption = (body?.caption ?? '').toString().slice(0, 280)
 
-  const ok = updateCaption(id, caption)
+  const ok = await updateCaption(id, caption)
   if (!ok) {
     throw createError({ statusCode: 404, statusMessage: 'Foto tidak ditemukan.' })
   }

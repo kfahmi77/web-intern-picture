@@ -1,6 +1,6 @@
 export default defineEventHandler(async (event) => {
   const id = getRouterParam(event, 'id') || ''
-  const photo = getPhoto(id)
+  const photo = await getPhoto(id)
   if (!photo) {
     throw createError({ statusCode: 404, statusMessage: 'Foto tidak ditemukan.' })
   }

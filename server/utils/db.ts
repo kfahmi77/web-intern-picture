@@ -1,39 +1,4 @@
-import { DatabaseSync } from 'node:sqlite'
-import { mkdirSync } from 'node:fs'
-import { dirname } from 'node:path'
-
-let db: DatabaseSync | null = null
-
-function resolveDbPath(): string {
-  const configured = process.env.NUXT_DB_PATH || useRuntimeConfig().dbPath
-  return configured && configured.length > 0 ? configured : '.data/photos.db'
-}
-
-export function getDb(): DatabaseSync {
-  if (db) return db
-
-  const path = resolveDbPath()
-  if (path !== ':memory:') {
-    mkdirSync(dirname(path), { recursive: true })
-  }
-
-  db = new DatabaseSync(path)
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS photos (
-      id          TEXT PRIMARY KEY,
-      object_key  TEXT NOT NULL,
-      thumb_key   TEXT NOT NULL,
-      caption     TEXT NOT NULL DEFAULT '',
-      width       INTEGER NOT NULL DEFAULT 0,
-      height      INTEGER NOT NULL DEFAULT 0,
-      mime        TEXT NOT NULL DEFAULT 'image/jpeg',
-      taken_at    TEXT NOT NULL,
-      created_at  TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_photos_taken_at ON photos (taken_at DESC);
-  `)
-  return db
-}
+const MANIFEST_KEY = 'metadata/photos.json'
 
 export interface PhotoRow {
   id: string
@@ -47,46 +12,105 @@ export interface PhotoRow {
   created_at: string
 }
 
-export function listPhotos(): PhotoRow[] {
-  return getDb()
-    .prepare('SELECT * FROM photos ORDER BY taken_at DESC, created_at DESC')
-    .all() as unknown as PhotoRow[]
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
 }
 
-export function getPhoto(id: string): PhotoRow | undefined {
-  return getDb().prepare('SELECT * FROM photos WHERE id = ?').get(id) as
-    | PhotoRow
-    | undefined
+function toPhotoRow(value: unknown): PhotoRow | null {
+  if (!isObjectRecord(value)) return null
+
+  const id = String(value.id || '')
+  const objectKey = String(value.object_key || '')
+  const thumbKey = String(value.thumb_key || '')
+
+  if (!id || !objectKey || !thumbKey) return null
+
+  return {
+    id,
+    object_key: objectKey,
+    thumb_key: thumbKey,
+    caption: String(value.caption || ''),
+    width: Number(value.width || 0),
+    height: Number(value.height || 0),
+    mime: String(value.mime || 'image/jpeg'),
+    taken_at: String(value.taken_at || value.created_at || new Date(0).toISOString()),
+    created_at: String(value.created_at || value.taken_at || new Date(0).toISOString()),
+  }
 }
 
-export function insertPhoto(row: PhotoRow): void {
-  getDb()
-    .prepare(
-      `INSERT INTO photos
-        (id, object_key, thumb_key, caption, width, height, mime, taken_at, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    )
-    .run(
-      row.id,
-      row.object_key,
-      row.thumb_key,
-      row.caption,
-      row.width,
-      row.height,
-      row.mime,
-      row.taken_at,
-      row.created_at,
-    )
+function sortPhotos(rows: PhotoRow[]): PhotoRow[] {
+  return [...rows].sort((a, b) => {
+    const taken = b.taken_at.localeCompare(a.taken_at)
+    return taken !== 0 ? taken : b.created_at.localeCompare(a.created_at)
+  })
 }
 
-export function updateCaption(id: string, caption: string): boolean {
-  const res = getDb()
-    .prepare('UPDATE photos SET caption = ? WHERE id = ?')
-    .run(caption, id)
-  return res.changes > 0
+function isMissingObjectError(err: unknown): boolean {
+  if (!isObjectRecord(err)) return false
+  const code = String(err.code || err.name || '')
+  const statusCode = Number(err.statusCode || 0)
+  return statusCode === 404 || code === 'NoSuchKey' || code === 'NotFound'
 }
 
-export function deletePhoto(id: string): boolean {
-  const res = getDb().prepare('DELETE FROM photos WHERE id = ?').run(id)
-  return res.changes > 0
+async function streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
+  const chunks: Buffer[] = []
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+  return Buffer.concat(chunks)
+}
+
+async function readManifest(): Promise<PhotoRow[]> {
+  await ensureBucket()
+
+  try {
+    const stream = await getObjectStream(MANIFEST_KEY)
+    const payload = JSON.parse((await streamToBuffer(stream)).toString('utf8')) as unknown
+    const photos = isObjectRecord(payload) && Array.isArray(payload.photos) ? payload.photos : []
+    return sortPhotos(photos.map(toPhotoRow).filter((row): row is PhotoRow => row !== null))
+  } catch (err) {
+    if (isMissingObjectError(err)) return []
+    throw err
+  }
+}
+
+async function writeManifest(rows: PhotoRow[]): Promise<void> {
+  const body = Buffer.from(JSON.stringify({ photos: sortPhotos(rows) }, null, 2))
+  await putObject(MANIFEST_KEY, body, 'application/json')
+}
+
+export async function listPhotos(): Promise<PhotoRow[]> {
+  return readManifest()
+}
+
+export async function getPhoto(id: string): Promise<PhotoRow | undefined> {
+  const rows = await readManifest()
+  return rows.find((row) => row.id === id)
+}
+
+export async function insertPhoto(row: PhotoRow): Promise<void> {
+  const rows = await readManifest()
+  await writeManifest([...rows.filter((item) => item.id !== row.id), row])
+}
+
+export async function updateCaption(id: string, caption: string): Promise<boolean> {
+  const rows = await readManifest()
+  let found = false
+  const next = rows.map((row) => {
+    if (row.id !== id) return row
+    found = true
+    return { ...row, caption }
+  })
+
+  if (!found) return false
+  await writeManifest(next)
+  return true
+}
+
+export async function deletePhoto(id: string): Promise<boolean> {
+  const rows = await readManifest()
+  const next = rows.filter((row) => row.id !== id)
+  if (next.length === rows.length) return false
+  await writeManifest(next)
+  return true
 }

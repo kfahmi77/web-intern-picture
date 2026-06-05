@@ -92,7 +92,7 @@ export default defineEventHandler(async (event) => {
       await putObject(objectKey, source.data, source.mime)
       await putObject(thumbKey, thumb, 'image/webp')
 
-      insertPhoto({
+      await insertPhoto({
         id,
         object_key: objectKey,
         thumb_key: thumbKey,
