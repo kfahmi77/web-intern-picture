@@ -85,6 +85,21 @@ export async function getObjectStream(key: string): Promise<Readable> {
   return getMinio().getObject(getBucket(), key)
 }
 
+export async function listObjects(prefix: string): Promise<Array<{ name: string; lastModified?: Date }>> {
+  await ensureBucket()
+
+  const objects: Array<{ name: string; lastModified?: Date }> = []
+  const stream = getMinio().listObjectsV2(getBucket(), prefix, true)
+
+  for await (const object of stream) {
+    if (object.name) {
+      objects.push({ name: object.name, lastModified: object.lastModified })
+    }
+  }
+
+  return objects
+}
+
 export async function removeObjects(keys: string[]): Promise<void> {
   if (keys.length === 0) return
   await getMinio().removeObjects(getBucket(), keys)

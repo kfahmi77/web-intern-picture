@@ -69,9 +69,41 @@ async function readManifest(): Promise<PhotoRow[]> {
     const photos = isObjectRecord(payload) && Array.isArray(payload.photos) ? payload.photos : []
     return sortPhotos(photos.map(toPhotoRow).filter((row): row is PhotoRow => row !== null))
   } catch (err) {
-    if (isMissingObjectError(err)) return []
+    if (isMissingObjectError(err)) {
+      const rows = await listStoredPhotos()
+      if (rows.length > 0) {
+        await writeManifest(rows)
+      }
+      return rows
+    }
     throw err
   }
+}
+
+async function listStoredPhotos(): Promise<PhotoRow[]> {
+  const objects = await listObjects('photos/')
+  const rows = objects
+    .map((object) => {
+      const match = object.name.match(/^photos\/(.+)\.([a-z0-9]+)$/i)
+      if (!match) return null
+
+      const [, id, ext] = match
+      const createdAt = object.lastModified?.toISOString() || new Date(0).toISOString()
+      return {
+        id,
+        object_key: object.name,
+        thumb_key: `thumbs/${id}.webp`,
+        caption: '',
+        width: 0,
+        height: 0,
+        mime: ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : 'image/jpeg',
+        taken_at: createdAt,
+        created_at: createdAt,
+      } satisfies PhotoRow
+    })
+    .filter((row): row is PhotoRow => row !== null)
+
+  return sortPhotos(rows)
 }
 
 async function writeManifest(rows: PhotoRow[]): Promise<void> {
