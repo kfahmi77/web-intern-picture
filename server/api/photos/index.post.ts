@@ -18,6 +18,15 @@ function fileExt(name: string): string {
   return (name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
+function normalizeMime(type: string | undefined, ext: string): string {
+  if (HEIC_EXT.has(ext)) return 'image/heic'
+  if (ext === 'jpg' || ext === 'jpeg') return 'image/jpeg'
+  if (ext === 'png') return 'image/png'
+  if (ext === 'webp') return 'image/webp'
+  if (ext === 'gif') return 'image/gif'
+  return type || 'image/jpeg'
+}
+
 function isHeic(mime: string, ext: string): boolean {
   return HEIC_MIME.has(mime) || HEIC_EXT.has(ext)
 }
@@ -31,17 +40,22 @@ async function normalizeImage(
     return { data, mime, ext }
   }
 
-  const convertHeic = require('heic-convert') as HeicConverter
-  const converted = await convertHeic({
-    buffer: data,
-    format: 'JPEG',
-    quality: 0.92,
-  })
+  try {
+    const convertHeic = require('heic-convert') as HeicConverter
+    const converted = await convertHeic({
+      buffer: data,
+      format: 'JPEG',
+      quality: 0.92,
+    })
 
-  return {
-    data: Buffer.from(converted),
-    mime: 'image/jpeg',
-    ext: 'jpg',
+    return {
+      data: Buffer.from(converted),
+      mime: 'image/jpeg',
+      ext: 'jpg',
+    }
+  } catch (err) {
+    console.warn('heic conversion failed; storing original file', err)
+    return { data, mime: 'image/heic', ext: ext || 'heic' }
   }
 }
 
@@ -70,7 +84,7 @@ export default defineEventHandler(async (event) => {
         continue
       }
       const ext = fileExt(name)
-      const mime = file.type || (HEIC_EXT.has(ext) ? 'image/heic' : 'image/jpeg')
+      const mime = normalizeMime(file.type, ext)
       if (!ALLOWED.has(mime)) {
         errors.push({ file: name, reason: `Tipe tidak didukung (${mime}).` })
         continue
@@ -98,7 +112,7 @@ export default defineEventHandler(async (event) => {
 
       uploaded.push({ id, caption: '' })
     } catch (err) {
-      errors.push({ file: name, reason: 'Gagal memproses gambar.' })
+      errors.push({ file: name, reason: err instanceof Error ? err.message : 'Gagal memproses gambar.' })
       console.error('upload error', name, err)
     }
   }
