@@ -60,14 +60,32 @@ async function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: nu
 async function compressImage(file: File): Promise<File> {
   if (isHeic(file)) {
     try {
-      return await transcodeImage(file)
+      const converted = await convertHeicToJpeg(file)
+      if (converted.size <= MAX_UPLOAD_BYTES) return converted
+      return transcodeImage(converted)
     } catch {
-      throw new Error('Browser ini tidak bisa membaca HEIC. Ubah foto ke JPEG dulu lalu upload ulang.')
+      throw new Error('HEIC gagal dikonversi di browser ini. Ubah foto ke JPEG dulu lalu upload ulang.')
     }
   }
   if (file.size <= MAX_UPLOAD_BYTES) return file
 
   return transcodeImage(file)
+}
+
+async function convertHeicToJpeg(file: File): Promise<File> {
+  const { default: heic2any } = await import('heic2any')
+  const converted = await heic2any({
+    blob: file,
+    toType: 'image/jpeg',
+    quality: 0.82,
+  })
+  const blob = Array.isArray(converted) ? converted[0] : converted
+  if (!blob) throw new Error('HEIC kosong setelah dikonversi.')
+
+  return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+    type: 'image/jpeg',
+    lastModified: file.lastModified,
+  })
 }
 
 async function transcodeImage(file: File): Promise<File> {

@@ -16,6 +16,9 @@ importers:
       heic-convert:
         specifier: 2.1.0
         version: 2.1.0
+      heic2any:
+        specifier: ^0.0.4
+        version: 0.0.4
       minio:
         specifier: ^8.0.5
         version: 8.0.7
@@ -2199,6 +2202,9 @@ packages:
   heic-decode@2.1.0:
     resolution: {integrity: sha512-0fB3O3WMk38+PScbHLVp66jcNhsZ/ErtQ6u2lMYu/YxXgbBtl+oKOhGQHa4RpvE68k8IzbWkABzHnyAIjR758A==}
     engines: {node: '>=8.0.0'}
+
+  heic2any@0.0.4:
+    resolution: {integrity: sha512-3lLnZiDELfabVH87htnRolZ2iehX9zwpRyGNz22GKXIu0fznlblf0/ftppXKNqS26dqFSeqfIBhAmAj/uSp0cA==}
 
   hookable@5.5.3:
     resolution: {integrity: sha512-Yc+BQe8SvoXH1643Qez1zqLRmbA5rCL+sSmk6TVos0LWVfNIB7PGncdlId77WzLGSIB5KaWgTaNTs2lNVEI6VQ==}
@@ -5698,6 +5704,8 @@ snapshots:
   heic-decode@2.1.0:
     dependencies:
       libheif-js: 1.19.8
+
+  heic2any@0.0.4: {}
 
   hookable@5.5.3: {}
 
