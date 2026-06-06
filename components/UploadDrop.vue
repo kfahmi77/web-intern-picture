@@ -58,11 +58,19 @@ async function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: nu
 }
 
 async function compressImage(file: File): Promise<File> {
-  if (file.size <= MAX_UPLOAD_BYTES) return file
   if (isHeic(file)) {
-    throw new Error('File HEIC terlalu besar untuk Vercel. Ubah ke JPEG dulu atau pilih file di bawah 3.8MB.')
+    try {
+      return await transcodeImage(file)
+    } catch {
+      throw new Error('Browser ini tidak bisa membaca HEIC. Ubah foto ke JPEG dulu lalu upload ulang.')
+    }
   }
+  if (file.size <= MAX_UPLOAD_BYTES) return file
 
+  return transcodeImage(file)
+}
+
+async function transcodeImage(file: File): Promise<File> {
   const img = await loadImage(file)
   const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(img.naturalWidth, img.naturalHeight))
   const canvas = document.createElement('canvas')
@@ -74,7 +82,7 @@ async function compressImage(file: File): Promise<File> {
 
   for (const quality of [0.82, 0.72, 0.62, 0.52]) {
     const blob = await canvasToBlob(canvas, 'image/jpeg', quality)
-    if (blob.size <= MAX_UPLOAD_BYTES) {
+    if (blob.size <= MAX_UPLOAD_BYTES || isHeic(file)) {
       return new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
         type: 'image/jpeg',
         lastModified: file.lastModified,

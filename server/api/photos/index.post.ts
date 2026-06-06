@@ -54,8 +54,8 @@ async function normalizeImage(
       ext: 'jpg',
     }
   } catch (err) {
-    console.warn('heic conversion failed; storing original file', err)
-    return { data, mime: 'image/heic', ext: ext || 'heic' }
+    console.warn('heic conversion failed', err)
+    throw new Error('HEIC gagal dikonversi. Ubah file ke JPEG dulu lalu upload ulang.')
   }
 }
 
