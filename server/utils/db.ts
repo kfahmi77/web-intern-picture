@@ -95,7 +95,7 @@ async function listStoredPhotos(): Promise<PhotoRow[]> {
       return {
         id,
         object_key: object.name,
-        thumb_key: `thumbs/${id}.webp`,
+        thumb_key: object.name,
         caption: '',
         width: 0,
         height: 0,

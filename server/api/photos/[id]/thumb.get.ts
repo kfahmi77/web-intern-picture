@@ -5,7 +5,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 404, statusMessage: 'Foto tidak ditemukan.' })
   }
 
-  setHeader(event, 'Content-Type', 'image/webp')
+  setHeader(event, 'Content-Type', photo.mime)
   setHeader(event, 'Cache-Control', 'public, max-age=31536000, immutable')
 
   try {

@@ -1,18 +1,18 @@
 import { randomUUID } from 'node:crypto'
 import { createRequire } from 'node:module'
-import sharp from 'sharp'
 
 const MAX_BYTES = 25 * 1024 * 1024
 const ALLOWED = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif'])
 const HEIC_MIME = new Set(['image/heic', 'image/heif'])
 const HEIC_EXT = new Set(['heic', 'heif'])
 
-const require = createRequire(import.meta.url)
-const convertHeic = require('heic-convert') as (options: {
+type HeicConverter = (options: {
   buffer: Buffer
   format: 'JPEG'
   quality: number
 }) => Promise<Buffer | Uint8Array>
+
+const require = createRequire(import.meta.url)
 
 function fileExt(name: string): string {
   return (name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -31,6 +31,7 @@ async function normalizeImage(
     return { data, mime, ext }
   }
 
+  const convertHeic = require('heic-convert') as HeicConverter
   const converted = await convertHeic({
     buffer: data,
     format: 'JPEG',
@@ -77,28 +78,19 @@ export default defineEventHandler(async (event) => {
 
       const id = randomUUID()
       const source = await normalizeImage(file.data, mime, ext)
-      const image = sharp(source.data, { failOn: 'none' }).rotate()
-      const meta = await image.metadata()
-
-      const thumb = await image
-        .clone()
-        .resize({ width: 800, height: 800, fit: 'inside', withoutEnlargement: true })
-        .webp({ quality: 78 })
-        .toBuffer()
-
       const objectKey = `photos/${id}.${source.ext || 'jpg'}`
-      const thumbKey = `thumbs/${id}.webp`
+      const thumbKey = `thumbs/${id}.${source.ext || 'jpg'}`
 
       await putObject(objectKey, source.data, source.mime)
-      await putObject(thumbKey, thumb, 'image/webp')
+      await putObject(thumbKey, source.data, source.mime)
 
       await insertPhoto({
         id,
         object_key: objectKey,
         thumb_key: thumbKey,
         caption: '',
-        width: meta.width || 0,
-        height: meta.height || 0,
+        width: 0,
+        height: 0,
         mime: source.mime,
         taken_at: nowIso,
         created_at: nowIso,
